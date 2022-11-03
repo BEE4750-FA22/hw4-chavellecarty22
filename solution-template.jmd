@@ -20,22 +20,335 @@ Pkg.instantiate()
 
 ## Problem 1.1
 
+components = ["Food Wastes", "Paper & Cardboard", "Plastics", "Textiles", "Rubber/Leather", "Wood", "Yard Wastes", "Glass", "Ferrous", "Aluminum", "Other Metal", "Miscellaneous"]
+
+MassPercentage = [0.15, 0.4, 0.05, 0.03, 0.02, 0.05, 0.18, 0.04, 0.02, 0.02, 0.01, 0.03]
+CombustionAshPercentage = [0.08, 0.07, 0.05, 0.10, 0.15, 0.02, 0.02, 1,1,1,1,0.7]
+RecyclingRate = [0, 0.55, 0.15, 0.10, 0, 0.30, 0.40, 0.60, 0.75, 0.80, 0.50, 0]
+
+city_out = [100,170]
+
+RecyclingFractions1 = RecyclingRate .* (MassPercentage * city_out[1])
+
+RecyclingFractions2 = RecyclingRate .* (MassPercentage * city_out[2])
+
+AshFractions1 = CombustionAshPercentage .* (MassPercentage * city_out[1])
+
+AshFractions2 = CombustionAshPercentage .* (MassPercentage * city_out[2])
+
+
 ## Problem 1.2
+
+cities = ["City 1", "City 2"]
+
+disposal_facilities = ["MRF", "Landfill", "WTE"]
+
+
+I = 1:2 #Number of cities
+
+J = 1:3 #Number of disposal facilities
+
+
+
+Decision Variables 
+
+Waste trasnsported from city i to disposal j: W[i in I, j in J]
+
+Residual waste transported from  disposal k to disposal j: R[k in J, j in J] 
+
+Operational status (on/off) of disposal j (binary): Y[j in J]
+
 
 ## Problem 1.3
 
+Our objective is to minimie the cost of the municipal solid waste disposal plan. The total cost of the disposal plan will be the sum of the fixed, tipping and recycling costs associated with each disposal facility, as well as transportation costs.
+
+
+fixed_costs = [2000, 1500, 2500] #Unit = $/day
+
+tipping_fees = [50, 7, 60] #Unit = $/Mg
+
+recycling_costs = [0, 45, 0] #Unit = $/Mg recycled
+
+transporttion_cost = 1.5 #Unit = $/Mg-km
+
+```julia
+using DataFrames
+
+relative_distances = DataFrame(City_Facility = [1, 2, "MRF", "Landfill", "WTE"], Distance_to_MRF = [5, 15, 0, 32, 15], Distance_to_Landfill = [30, 25, 32, 0, 18], Distance_to_WTE = [15, 10, 15, 18, 0])
+```
+
+
+Landfill Costs
+```math
+LfFC = 2000 * Y[1]\\
+LfTC = 50 * (W[1,1] + W[2,1] + R[2,1] + R[3,1])\\
+LfTotal = LfFC + LfTC
+```
+
+Note: The landfill has no associated recycling costs. 
+
+
+Recycling Facility Costs
+```math
+MRFFC = 1500 * Y[2]\\
+MRFTC = 7 * (W[1,2] + W[2,2])\\
+MRFRC = 45 * (sum(RecyclingRate .* (MassPercentage * W[1,2])) + sum(RecyclingRate .* (MassPercentage * W[2,2])))\\
+MRCTotal = MRFFC + MRFTC + MRFRC
+``` 
+
+Note: The recycling rate at the MRF facility varies based on the components of the waste. RecyclingRate is a vector that stores the various recycling rates for each component of the solid waste. MassPercentage is a vector that stores what percentage of the solid waste will be of a certain component type.
+
+
+Waste-to-Energy Facility Costs
+```math
+WTEFC = 2500 * Y[3]\\
+WTETC = 60 * (W[1,3] + W[2,3] + R[2,3])\\
+WTETotal = WTEFC + WTETC
+```
+
+Note: The WTE facility has no associated recycling costs
+
+
+Transportation Costs
+```math
+TC = 1.5 * ((5*W[1,2]) + (30*W[1,1]) + (15*W[1,3]) + (15*W[2,2]) + (25*W[2,1]) + (10*W[2,3]) + (32*R[2,1]) + (15*R[2,3]) + (18*W[3,1])) 
+```
+
+
+```math
+minimize(LfTotal + MRCTotal + WTETotal + TC)
+```
+Note: The transportation cost calculation utilizes the relative_distances data frame that stores the distance between each city and facility, in addition to, the distances between each facility. 
+
 ## Problem 1.4
 
+The MSW Disposal Plan is subject to the following constraints:
+
+
+facility_capacity = [200, 350, 150]
+
+
+Constraints
+
+1. All numerical variables are non-negative:
+```math
+W[I,J] >= 0\\
+R[J,J] >= 0
+```
+
+
+2. Mass Balance of municipal solid waste produced by each city:
+
+   City 1 produces 100 Mg/day of solid waste 
+   ```math
+   W[1,1] + W[1,2] + W[1,3] = 100
+   ```
+   
+   City 2 produces 170 Mg/day of solid waste
+   ```math
+   W[2,1] + W[2,2] + W[2,3] = 170
+   ```
+
+
+3. Solid waste sent to each disposal facility cannot exceed their capacity:
+```math
+    W[1,1] + W[2,1] + R[2,1] + R[3,1] <= 200\\
+    W[1,2] + W[2,2] <= 350\\
+    W[1,3] + W[2,3] + R[2,3] <= 150
+```
+
+
+4. Combustion Ash Mass Balance:
+   ```math
+   R[2,1] + R[2,3] = sum(RecyclingRate .* (MassPercentage * W[1,2])) + sum(RecyclingRate .* (MassPercentage * W[2,2])) + sum(CombustionAshPercentage .* (MassPercentage * W[1,2])) + sum(CombustionAshPercentage .* (MassPercentage * W[2,2]))\\
+   R[3,1] =  sum(CombustionAshPercentage .* (MassPercentage * W[1,3])) + sum(CombustionAshPercentage .* (MassPercentage * W[2,3])) + sum(CombustionAshPercentage .* (MassPercentage * R[2,3])))\\
+   R[3,2] = 0\\
+   sum(R[1,:]) = 0\\
+   sum(R[J,J]) = 0
+   ```
+
+
+5. Commitment:
+
+   Landfill must always be on
+   ```math
+    Y[3] = 1
+   ```
+
+   IF (W[1,3] + W[2,3] + R[2,3]) == 0
+   ```math
+    Y[1] = 0
+   ```
+   ELSE
+   ```math
+    Y[1] = 1
+   ```
+
+   IF (W[1,2] + W[2,2]) == 0
+   ```math
+    Y[2] = 0
+   ```
+   ELSE
+   ```math
+    Y[2] = 1
+   ```
+
+
 ## Problem 1.5
+```julia
+using JuMP
+using Cbc
+
+waste = Model(Cbc.Optimizer)
+
+I = 1:2 #Number of cities
+J = 1:3 #Number of disposal sites
+
+city_out = [100;170]
+
+components = ["Food Wastes", "Paper & Cardboard", "Plastics", "Textiles", "Rubber/Leather", "Wood", "Yard Wastes", "Glass", "Ferrous", "Aluminum", "Other Metal", "Miscellaneous"]
+
+MassPercentage = [0.15, 0.4, 0.05, 0.03, 0.02, 0.05, 0.18, 0.04, 0.02, 0.02, 0.01, 0.03] #Mass percentage of each component of the solid waste
+CombustionAshPercentage = [0.08, 0.07, 0.05, 0.10, 0.15, 0.02, 0.02, 1,1,1,1,0.7] #Ash fractions for each component of the solid waste
+RecyclingRate = [0, 0.55, 0.15, 0.10, 0, 0.30, 0.40, 0.60, 0.75, 0.80, 0.50, 0] #Recycling rates for each component of the solid waste
+
+@variable(waste, W[i in I, j in J] >= 0)
+@variable(waste, R[k in J, j in J] >= 0)
+@variable(waste, Y[j in J], Bin)
+
+@objective(waste, Min, sum([2000, 1500, 2500] .* Y) + sum([95 14.5 82.5;87.5 29.5 75] .* W) + sum([0 0 0;98 0 82.5;77 0 0] .* R) + (45 * (sum(RecyclingRate .* (MassPercentage * W[1,2])) + sum(RecyclingRate .* (MassPercentage * W[2,2])))))
+
+@constraint(waste, City[i in I], sum(W[i,:]) == city_out[i]) #Mass Balance of municipal solid waste produced by each city
+@constraint(waste, Landfill, W[1,1] + W[2,1] + R[2,1] + R[3,1] <= 200) #Solid waste sent to each disposal facility cannot exceed their capacity
+@constraint(waste, MRF, W[1,2] + W[2,2] <= 350)
+@constraint(waste, WTE, W[1,3] + W[2,3] + R[2,3] <= 150)
+@constraint(waste, noresid, R[3,2] == 0) #No residual from WTE to MRF
+@constraint(waste, noresiddiag, sum(R[j,j] for j in J) == 0) #Residual must exit disposal facility
+@constraint(waste, resid1, sum(R[1,:]) == 0) #No residual from Landfill
+@constraint(waste, resid2, R[2,1] + R[2,3] == sum(RecyclingRate .* (MassPercentage * W[1,2])) + sum(RecyclingRate .* (MassPercentage * W[2,2])) + sum(CombustionAshPercentage .* (MassPercentage * W[1,2])) + sum(CombustionAshPercentage .* (MassPercentage * W[2,2]))) #Combustion Ash Mass Balance
+@constraint(waste, resid3, R[3,1] == sum(CombustionAshPercentage .* (MassPercentage * W[1,3])) + sum(CombustionAshPercentage .* (MassPercentage * W[2,3])) + sum(CombustionAshPercentage .* (MassPercentage * R[2,3])))
+@constraint(waste, commit1, Y[1] == 1) #Landfill will always be utilized
+@constraint(waste, commit2, !Y[2] => {W[1,2] + W[2,2] == 0}) #MRF will be "off" if no solid waste from either city enters this disposal facility
+@constraint(waste, commit3, !Y[3] => {W[1,3] + W[2,3] + R[2,3] == 0}) #WTE will be "off" if no solid waste from either city or any residuals from the MRF enters this disposal facility
+
+
+
+set_silent(waste)
+optimize!(waste)
+
+print(objective_value(waste))
+
+
+print(value.(Y))
+
+
+print(value.(W))
+
+
+print(value.(R))
+
+```
 
 ## Problem 1.6
+The optimal objective value is equal to approximately $27,500. The optimal solution for the MSW Disposal Plan, as depicted in the below diagram, is for all the solid waste from City 1 to go to the Recycling Facility (100 Mg/day). The solid waste from City 2 will go to both the Recycling Facility (52.7 Mg/day) and the Landfill (117.3 Mg/day). The recycling residuals from the Recycling Facility will then be sent to the landfill (82.7 Mg/day). The Waste-to-Energy facility will not be used. 
+
+
+![img](MSW_Plan1.png)
 
 # Problem 2
-
+With these new policies in place I would recommend that less of the solid waste goes to landfill because of how far it is from both cities. Although the cost of using the WTE has increased it is closer to both cities and the MRF. 
 ## Problem 2.1
+The changes to be made will be the tipping fee at the WTE facility and changing the transportation cost. This will change the objective function of the optimization model.
+
+
+Objective Change:
+
+New Waste-to-Energy Facility Costs
+```math
+WTEFC = 2500 * Y[3]\\
+WTETC = 75 * (W[1,3] + W[2,3] + R[2,3])\\
+WTETotal = WTEFC + WTETC
+```
+
+New Transportation Costs
+```math
+TC = 2 * ((5*W[1,2]) + (30*W[1,1]) + (15*W[1,3]) + (15*W[2,2]) + (25*W[2,1]) + (10*W[2,3]) + (32*R[2,1]) + (15*R[2,3]) + (18*W[3,1]))\\
+```
+
+```math
+minimize(LfTotal + MRCTotal + WTETotal + TC)
+```
+Note: LfTotal and MRCTotal will be same as before but the WTETotal and TC values will reflect the changes made to the WTE tipping fee and transportation costs. 
+
+
+Constraint Change:
+
+IF W[1,1] + W[2,1] + R[2,1] + R[3,1] = 0
+```math
+Y[1] = 0
+```
+ELSE 
+```math
+Y[1] = 1
+```
+
 
 ## Problem 2.2
+```julia
+using JuMP
+using Cbc
 
+waste = Model(Cbc.Optimizer)
+
+I = 1:2 #Number of cities
+J = 1:3 #Number of disposal sites
+
+city_out = [100;170]
+
+components = ["Food Wastes", "Paper & Cardboard", "Plastics", "Textiles", "Rubber/Leather", "Wood", "Yard Wastes", "Glass", "Ferrous", "Aluminum", "Other Metal", "Miscellaneous"]
+
+MassPercentage = [0.15, 0.4, 0.05, 0.03, 0.02, 0.05, 0.18, 0.04, 0.02, 0.02, 0.01, 0.03] #Mass percentage of each component of the solid waste
+CombustionAshPercentage = [0.08, 0.07, 0.05, 0.10, 0.15, 0.02, 0.02, 1,1,1,1,0.7] #Ash fractions for each component of the solid waste
+RecyclingRate = [0, 0.55, 0.15, 0.10, 0, 0.30, 0.40, 0.60, 0.75, 0.80, 0.50, 0] #Recycling rates for each component of the solid waste
+
+@variable(waste, W[i in I, j in J] >= 0)
+@variable(waste, R[k in J, j in J] >= 0)
+@variable(waste, Y[j in J], Bin)
+
+@objective(waste, Min, sum([2000, 1500, 2500] .* Y) + sum([110 17 105;100 37 95] .* W) + sum([0 0 0;114 0 105;86 0 0] .* R) + (45 * (sum(RecyclingRate .* (MassPercentage * W[1,2])) + sum(RecyclingRate .* (MassPercentage * W[2,2])))))
+
+@constraint(waste, City[i in I], sum(W[i,:]) == city_out[i]) #Mass Balance of municipal solid waste produced by each city
+@constraint(waste, Landfill, W[1,1] + W[2,1] + R[2,1] + R[3,1] <= 200) #Solid waste sent to each disposal facility cannot exceed their capacity
+@constraint(waste, MRF, W[1,2] + W[2,2] <= 350)
+@constraint(waste, WTE, W[1,3] + W[2,3] + R[2,3] <= 150)
+@constraint(waste, noresid, R[3,2] == 0) #No residual from WTE to MRF
+@constraint(waste, noresiddiag, sum(R[j,j] for j in J) == 0) #Residual must exit disposal facility
+@constraint(waste, resid1, sum(R[1,:]) == 0) #No residual from Landfill
+@constraint(waste, resid2, R[2,1] + R[2,3] == sum(RecyclingRate .* (MassPercentage * W[1,2])) + sum(RecyclingRate .* (MassPercentage * W[2,2])) + sum(CombustionAshPercentage .* (MassPercentage * W[1,2])) + sum(CombustionAshPercentage .* (MassPercentage * W[2,2]))) #Combustion Ash Mass Balance
+@constraint(waste, resid3, R[3,1] == sum(CombustionAshPercentage .* (MassPercentage * W[1,3])) + sum(CombustionAshPercentage .* (MassPercentage * W[2,3])) + sum(CombustionAshPercentage .* (MassPercentage * R[2,3])))
+@constraint(waste, commit1, Y[1] == 1) 
+@constraint(waste, commit2, !Y[2] => {W[1,2] + W[2,2] == 0}) #MRF will be "off" if no solid waste from either city enters this disposal facility
+@constraint(waste, commit3, !Y[3] => {W[1,3] + W[2,3] + R[2,3] == 0}) #WTE will be "off" if no solid waste from either city or any residuals from the MRF enters this disposal facility
+#@constraint(waste, test, W[1,2] + W[2,2] == sum(city_out))
+#@constraint(waste, dist, optimize(
+set_silent(waste)
+optimize!(waste)
+
+print(objective_value(waste))
+
+
+print(value.(Y))
+
+
+print(value.(W))
+
+
+print(value.(R))
+
+```
 ## Problem 2.3
 
 # References
+https://datatofish.com/dataframe-julia/
+
